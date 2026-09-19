@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Dashboard</title>
+    <!-- Precompiled zero-runtime CSS with modern variables & responsive grid -->
+    <style>
+        :root {
+            --bg-base: #020617; /* slate-950 */
+            --bg-card: #0f172a; /* slate-900 */
+            --bg-card-hover: #1e293b; /* slate-800 */
+            --border-subtle: #1e293b; /* slate-800 */
+            --border-highlight: #334155; /* slate-700 */
+            --text-main: #f8fafc; /* slate-100 */
+            --text-muted: #94a3b8; /* slate-400 */
+            --accent-blue: #2563eb; /* blue-600 */
+            --accent-blue-hover: #1d4ed8; /* blue-700 */
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding-bottom: 96px; /* space for fixed dock */
+            -webkit-font-smoothing: antialiased;
+        }
+        .header {
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .title { font-size: 1.5rem; font-weight: 700; }
+        .datetime { color: var(--text-muted); font-size: 0.875rem; margin-top: 0.25rem; }
+        .btn-refresh {
+            background-color: var(--accent-blue);
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+        }
+        .btn-refresh:hover { background-color: var(--accent-blue-hover); }
+        .btn-refresh svg { width: 1rem; height: 1rem; }
+        .btn-refresh.rotating svg {
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Grid */
+        .summary-grid {
+            padding: 0 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            transition: border-color 0.15s ease, transform 0.15s ease;
+            cursor: pointer;
+        }
+        .card:hover {
+            border-color: var(--border-highlight);
+            transform: translateY(-2px);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .card-title { font-size: 0.875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+        .card-badge {
+            background-color: rgba(37, 99, 235, 0.15);
+            color: #60a5fa;
+            font-size: 0.75rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+        }
+        .card-count { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .card-desc { font-size: 0.8125rem; color: var(--text-muted); }
+
+        /* Workspace */
+        .workspace-section { padding: 1.5rem; }
+        .workspace-card {
+            background-color: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border-subtle);
+            min-height: 240px;
+        }
+        .workspace-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+        .briefing-list { list-style: none; display: flex; flex-direction: column; gap: 0.625rem; }
+        .briefing-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #cbd5e1;
+            font-size: 0.9375rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .briefing-item svg { width: 1.125rem; height: 1.125rem; color: var(--text-muted); flex-shrink: 0; }
+
+        /* High-Performance Dock (Replacing expensive backdrop-filter with clean solid-opacity layer) */
+        .dock-container {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 50;
+        }
+        .dock {
+            pointer-events: auto;
+            background: #0f172a;
+            border: 1px solid var(--border-highlight);
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            /* Hardware-accelerated layer without expensive blur */
+            transform: translateZ(0);
+            will-change: transform;
+        }
+        .dock-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 0.75rem;
+            border-radius: 1rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+        .dock-btn:hover {
+            background-color: var(--border-subtle);
+            color: var(--text-main);
+        }
+        .dock-btn.active {
+            background-color: rgba(37, 99, 235, 0.2);
+            color: #60a5fa;
+        }
+        .dock-btn svg { width: 1.35rem; height: 1.35rem; display: block; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div>
+            <h1 class="title">Good morning! Here is your daily summary</h1>
+            <p id="datetime" class="datetime"></p>
+        </div>
+        <button id="refreshBtn" class="btn-refresh" aria-label="Refresh Summaries">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                <path d="M8 16H3v5"/>
+            </svg>
+            Refresh Summaries
+        </button>
+    </header>
+
+    <!-- Summary Cards Grid -->
+    <main class="summary-grid" id="summaryGrid"></main>
+
+    <!-- Main Workspace -->
+    <section class="workspace-section">
+        <div class="workspace-card" id="workspace">
+            <h2 class="workspace-title" id="workspaceTitle">Executive Briefing</h2>
+            <ul id="briefingList" class="briefing-list"></ul>
+        </div>
+    </section>
+
+    <!-- Bottom Dock with Event Delegation -->
+    <nav class="dock-container">
+        <div class="dock" id="bottomDock">
+            <button type="button" title="Gmail" data-app="gmail" class="dock-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                </svg>
+            </button>
+            <button type="button" title="Calendar" data-app="calendar" class="dock-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>
+                </svg>
+            </button>
+            <button type="button" title="Drive" data-app="drive" class="dock-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+                    <line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>
+                </svg>
+            </button>
+            <button type="button" title="Docs" data-app="docs" class="dock-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>
+                </svg>
+            </button>
+            <button type="button" title="Messenger" data-app="messenger" class="dock-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <script>
+        // Data Store
+        const appState = {
+            activeApp: null,
+            data: {
+                gmail: { title: "Gmail", count: "3 Unread", preview: "Meeting update from team", items: ["Meeting update from team", "Urgent: Project deadline", "Newsletter update"] },
+                calendar: { title: "Calendar", count: "2 Events", preview: "Sync-up at 9:00 AM", items: ["Sync-up: 9:00 AM", "Project review: 11:00 AM"] },
+                drive: { title: "Drive", count: "4 Files", preview: "Q4_Report.pdf updated", items: ["Q4_Report.pdf", "Proposal_v2.docx", "Roadmap_2026.xlsx"] },
+                tasks: { title: "Tasks", count: "5 Pending", preview: "Submit Q3 metrics report", items: ["Submit report", "Reply to clients", "Prepare slide deck"] }
+            }
+        };
+
+        // Cached DOM Elements
+        const elements = {
+            datetime: document.getElementById('datetime'),
+            summaryGrid: document.getElementById('summaryGrid'),
+            workspaceTitle: document.getElementById('workspaceTitle'),
+            briefingList: document.getElementById('briefingList'),
+            bottomDock: document.getElementById('bottomDock'),
+            refreshBtn: document.getElementById('refreshBtn')
+        };
+
+        // Efficient single-pass date formatter
+        function updateDateTime() {
+            const now = new Date();
+            elements.datetime.textContent = now.toLocaleDateString(undefined, { 
+                weekday: 'long', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+            });
+        }
+
+        // Render Summary Grid using DocumentFragment (Single reflow)
+        function renderSummaryGrid() {
+            const fragment = document.createDocumentFragment();
+            const entries = Object.entries(appState.data);
+
+            for (let i = 0; i < entries.length; i++) {
+                const [key, info] = entries[i];
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.setAttribute('data-app', key);
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-title">${info.title}</span>
+                        <span class="card-badge">${info.count}</span>
+                    </div>
+                    <div class="card-count">${info.items.length}</div>
+                    <div class="card-desc">${info.preview}</div>
+                `;
+                fragment.appendChild(card);
+            }
+
+            elements.summaryGrid.innerHTML = '';
+            elements.summaryGrid.appendChild(fragment);
+        }
+
+        // Render Briefing List with DocumentFragment (Zero layout thrashing)
+        function renderBriefingList() {
+            const fragment = document.createDocumentFragment();
+            const d = appState.data;
+            const topHighlights = [
+                { category: 'Gmail', item: d.gmail.items[0] },
+                { category: 'Calendar', item: d.calendar.items[0] },
+                { category: 'Drive', item: d.drive.items[0] },
+                { category: 'Tasks', item: d.tasks.items[0] }
+            ];
+
+            for (let i = 0; i < topHighlights.length; i++) {
+                const h = topHighlights[i];
+                if (!h.item) continue;
+                const li = document.createElement('li');
+                li.className = 'briefing-item';
+                li.textContent = `• [${h.category}] ${h.item}`;
+                fragment.appendChild(li);
+            }
+
+            elements.briefingList.innerHTML = '';
+            elements.briefingList.appendChild(fragment);
+        }
+
+        // Optimized Workspace switcher using cached DOM
+        function switchApp(appName) {
+            if (appState.activeApp === appName) return; // Prevent redundant re-renders
+            appState.activeApp = appName;
+
+            // Update dock button states
+            const buttons = elements.bottomDock.children;
+            for (let i = 0; i < buttons.length; i++) {
+                const btn = buttons[i];
+                if (btn.getAttribute('data-app') === appName) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            }
+
+            elements.workspaceTitle.textContent = `${appName.toUpperCase()} Workspace`;
+
+            const selected = appState.data[appName];
+            const fragment = document.createDocumentFragment();
+
+            if (selected && selected.items) {
+                for (let i = 0; i < selected.items.length; i++) {
+                    const li = document.createElement('li');
+                    li.className = 'briefing-item';
+                    li.textContent = `• ${selected.items[i]}`;
+                    fragment.appendChild(li);
+                }
+            } else {
+                const li = document.createElement('li');
+                li.className = 'briefing-item';
+                li.textContent = `Active connection established to ${appName}. Ready for API sync.`;
+                fragment.appendChild(li);
+            }
+
+            elements.briefingList.innerHTML = '';
+            elements.briefingList.appendChild(fragment);
+        }
+
+        // Event Delegation for dock clicks
+        elements.bottomDock.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-app]');
+            if (!btn) return;
+            const app = btn.getAttribute('data-app');
+            switchApp(app);
+        });
+
+        // Event Delegation for summary grid card clicks
+        elements.summaryGrid.addEventListener('click', (e) => {
+            const card = e.target.closest('[data-app]');
+            if (!card) return;
+            const app = card.getAttribute('data-app');
+            switchApp(app);
+        });
+
+        // Debounced Refresh Simulation
+        let isRefreshing = false;
+        elements.refreshBtn.addEventListener('click', () => {
+            if (isRefreshing) return;
+            isRefreshing = true;
+            elements.refreshBtn.classList.add('rotating');
+
+            setTimeout(() => {
+                updateDateTime();
+                renderSummaryGrid();
+                if (appState.activeApp) {
+                    switchApp(appState.activeApp);
+                } else {
+                    renderBriefingList();
+                }
+                elements.refreshBtn.classList.remove('rotating');
+                isRefreshing = false;
+            }, 350);
+        });
+
+        // Initialize single batch
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDateTime();
+            renderSummaryGrid();
+            renderBriefingList();
+        });
+    </script>
+</body>
+</html>
+
